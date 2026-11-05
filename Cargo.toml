@@ -1,0 +1,13 @@
+[package]
+name = "horizon-mod-smooth-f5"
+version = "1.0.0"
+edition = "2024"
+license = "CC0-1.0"
+publish = false
+description = "Smooths the third-person camera with eased transitions and spring damping: a Rust port of Countered's Smooth F5."
+
+# The mod logic and its tests: the same file the bundle adds to the game.
+[lib]
+path = "mixins/smooth_f5/runtime.rs"
+
+[dependencies]

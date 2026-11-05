@@ -1,0 +1,35 @@
+[mod]
+id = "smooth_f5"
+version = "1.0.0"
+priority = 100
+
+# The commit it was built and tested on.
+[compatibility]
+horizon_revision = "3fb4c3138e0c5d8fdd2fdb555cf31368e8897497"
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "smooth_f5"
+source = "runtime.rs"
+
+[[injection]]
+id = "camera"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_camera_shake"
+helper = "camera.rs"
+bindings = [
+  { name = "game", ty = "&crate::game::Game<'_>", value = "self" },
+  { name = "shake", ty = "&mut crate::game::native_hooks::NativeShake", value = "&mut *shake" },
+]
+
+[[injection]]
+id = "command"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_command"
+helper = "command.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "command", ty = "&str", value = "command" },
+  { name = "ran", ty = "&mut bool", value = "&mut *ran" },
+]

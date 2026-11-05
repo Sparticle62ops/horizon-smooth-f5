@@ -1,0 +1,10 @@
+CC0 1.0 Universal (public domain dedication)
+
+This mod is a port of Countered's Smooth F5
+(https://github.com/Coun7ered/smooth_f5), released by its author Countered
+under CC0 1.0. The original Java mod and this Rust port are both dedicated to
+the public domain under the Creative Commons CC0 1.0 Universal deed; the full
+legal text lives at https://creativecommons.org/publicdomain/zero/1.0/.
+
+The port keeps the original's behavior, constants and naming where Horizon's
+camera surface allows it, and credits the original wherever the mod is shown.
