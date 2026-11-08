@@ -11,3 +11,9 @@ description = "Smooths the third-person camera with eased transitions and spring
 path = "mixins/smooth_f5/runtime.rs"
 
 [dependencies]
+
+# The standalone crate build (port unit tests) excludes the in-game glue, which
+# only compiles when the file is included into the horizon-client game module.
+[features]
+default = ["standalone"]
+standalone = []

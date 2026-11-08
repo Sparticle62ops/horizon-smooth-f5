@@ -908,6 +908,7 @@ mod tests {
 
 // Camera-hook glue, shared with the camera helper: the config cached from
 // disk and the frame clock that supplies each hook call its delta time.
+#[cfg(not(feature = "standalone"))]
 pub fn camera_config() -> Config {
     static CONFIG: std::sync::OnceLock<std::sync::Mutex<Option<Config>>> = std::sync::OnceLock::new();
     let cell = CONFIG.get_or_init(|| std::sync::Mutex::new(None));
@@ -923,6 +924,7 @@ pub fn camera_config() -> Config {
     loaded
 }
 
+#[cfg(not(feature = "standalone"))]
 pub fn camera_seconds() -> Option<f32> {
     static LAST: std::sync::OnceLock<std::sync::Mutex<Option<std::time::Instant>>> = std::sync::OnceLock::new();
     let cell = LAST.get_or_init(|| std::sync::Mutex::new(None));
@@ -934,11 +936,13 @@ pub fn camera_seconds() -> Option<f32> {
 }
 
 // Command glue, shared with the command helper.
+#[cfg(not(feature = "standalone"))]
 fn config_slot() -> &'static std::sync::Mutex<Option<Config>> {
     static CONFIG: std::sync::OnceLock<std::sync::Mutex<Option<Config>>> = std::sync::OnceLock::new();
     CONFIG.get_or_init(|| std::sync::Mutex::new(None))
 }
 
+#[cfg(not(feature = "standalone"))]
 fn cached_config() -> Config {
     let mut guard = config_slot().lock().expect("smooth_f5 config lock");
     if guard.is_none() {
@@ -952,6 +956,7 @@ fn cached_config() -> Config {
     guard.unwrap_or_else(Config::default)
 }
 
+#[cfg(not(feature = "standalone"))]
 fn store_config(game: &mut crate::game::Game<'_>, config: Config) {
     let dir = crate::game::Game::native_config_dir();
     let saved = dir.is_ok() && save_config(&dir.expect("checked"), &config).is_ok();
@@ -987,6 +992,7 @@ fn on_off(value: bool) -> &'static str {
 /// Handles `/smoothf5` and `/sf5`: parses the subcommand, applies config
 /// changes through the store and answers in chat, mirroring the original
 /// Countered's Smooth F5 command surface.
+#[cfg(not(feature = "standalone"))]
 pub fn command_entry(game: &mut crate::game::Game<'_>, command: &str, ran: &mut bool) {
     if !game.native_on(ID) {
         return;
