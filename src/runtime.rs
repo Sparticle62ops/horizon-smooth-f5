@@ -1,4 +1,3 @@
-
 /// The mod id, as `cargo horizon-mod check` and the mod screen see it.
 pub const ID: &str = "smooth_f5";
 
@@ -23,6 +22,26 @@ pub enum Mode {
 }
 
 impl Mode {
+    /// The settings index of this mode (the choice setting's order).
+    pub fn index(self) -> usize {
+        match self {
+            Mode::Transition => 0,
+            Mode::Movement => 1,
+            Mode::Always => 2,
+            Mode::Never => 3,
+        }
+    }
+    /// The mode at a settings index, None past the last one.
+    pub fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Mode::Transition),
+            1 => Some(Mode::Movement),
+            2 => Some(Mode::Always),
+            3 => Some(Mode::Never),
+            _ => None,
+        }
+    }
+
     pub fn parse(word: &str) -> Option<Self> {
         match word.to_ascii_lowercase().as_str() {
             "transition" => Some(Self::Transition),
@@ -204,8 +223,8 @@ impl State {
             let step = left.min(0.25) as f64;
             for axis in 0..3 {
                 let diff = target[axis] - self.smooth_pos[axis];
-                let acceleration = diff * f64::from(stiffness)
-                    - self.smooth_vel[axis] * f64::from(damping);
+                let acceleration =
+                    diff * f64::from(stiffness) - self.smooth_vel[axis] * f64::from(damping);
                 self.smooth_vel[axis] += acceleration * step;
                 self.smooth_pos[axis] += self.smooth_vel[axis] * step;
             }
@@ -256,14 +275,13 @@ impl State {
         let t = self.transition_progress;
         let ease = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);
         for axis in 0..3 {
-            self.smooth_pos[axis] =
-                self.trans_start_pos[axis] + (target_pos[axis] - self.trans_start_pos[axis]) * f64::from(ease);
+            self.smooth_pos[axis] = self.trans_start_pos[axis]
+                + (target_pos[axis] - self.trans_start_pos[axis]) * f64::from(ease);
         }
         self.smooth_yaw = wrap_degrees(
             self.trans_start_yaw + (self.trans_target_yaw - self.trans_start_yaw) * ease,
         );
-        self.smooth_pitch =
-            self.trans_start_pitch + (target_pitch - self.trans_start_pitch) * ease;
+        self.smooth_pitch = self.trans_start_pitch + (target_pitch - self.trans_start_pitch) * ease;
         if self.transition_progress >= 1.0 {
             self.is_transitioning = false;
             self.snap_to(target_pos, target_yaw, target_pitch);
@@ -300,12 +318,7 @@ pub struct Pose {
 /// This is the whole port of the original's two `Camera.update` hooks run as
 /// one: the mode-change head logic, the springs, the transition and the
 /// front-view fall-flying snap, then the pose delta the shake surface applies.
-pub fn camera_hook(
-    pose: &Pose,
-    dt: Option<f32>,
-    config: &Config,
-    state: &mut State,
-) -> ShakeOut {
+pub fn camera_hook(pose: &Pose, dt: Option<f32>, config: &Config, state: &mut State) -> ShakeOut {
     if config.mode == Mode::Never {
         return ShakeOut::default();
     }
@@ -356,7 +369,13 @@ pub fn camera_hook(
 
     if should_smooth {
         if state.is_transitioning {
-            state.apply_transition_logic(pose.pos, pose.yaw, pose.pitch, dt, config.return_duration);
+            state.apply_transition_logic(
+                pose.pos,
+                pose.yaw,
+                pose.pitch,
+                dt,
+                config.return_duration,
+            );
         } else if state.should_snap_next {
             state.snap_to(pose.pos, pose.yaw, pose.pitch);
             state.should_snap_next = false;
@@ -388,8 +407,10 @@ fn apply_delta(pose: &Pose, config: &Config, state: &mut State) -> ShakeOut {
     let mut out = ShakeOut::default();
 
     if config.rot {
-        let yaw_diff = wrap_degrees(state.smooth_yaw - pose.yaw).clamp(-SHAKE_MAX_DEGREES, SHAKE_MAX_DEGREES);
-        let pitch_diff = (state.smooth_pitch - pose.pitch).clamp(-SHAKE_MAX_DEGREES, SHAKE_MAX_DEGREES);
+        let yaw_diff =
+            wrap_degrees(state.smooth_yaw - pose.yaw).clamp(-SHAKE_MAX_DEGREES, SHAKE_MAX_DEGREES);
+        let pitch_diff =
+            (state.smooth_pitch - pose.pitch).clamp(-SHAKE_MAX_DEGREES, SHAKE_MAX_DEGREES);
         let rendered_yaw = wrap_degrees(pose.yaw + yaw_diff);
         let rendered_pitch = pose.pitch + pitch_diff;
 
@@ -413,7 +434,11 @@ fn apply_delta(pose: &Pose, config: &Config, state: &mut State) -> ShakeOut {
                 f32::atan2(-matrix[0][1], matrix[1][1]),
             )
         } else {
-            (f32::atan2(matrix[0][2], matrix[0][0]), matrix[2][1].signum() * PI / 2.0, 0.0)
+            (
+                f32::atan2(matrix[0][2], matrix[0][0]),
+                matrix[2][1].signum() * PI / 2.0,
+                0.0,
+            )
         };
         out.yaw = yaw_sh * RAD_TO_DEG;
         out.pitch = pitch_sh * RAD_TO_DEG;
@@ -556,7 +581,11 @@ impl Quat {
         let ex = self.transform([1.0, 0.0, 0.0]);
         let ey = self.transform([0.0, 1.0, 0.0]);
         let ez = self.transform([0.0, 0.0, 1.0]);
-        [[ex[0], ey[0], ez[0]], [ex[1], ey[1], ez[1]], [ex[2], ey[2], ez[2]]]
+        [
+            [ex[0], ey[0], ez[0]],
+            [ex[1], ey[1], ez[1]],
+            [ex[2], ey[2], ez[2]],
+        ]
     }
 }
 
@@ -569,28 +598,7 @@ fn cos_from_sin(sin: f32, angle: f32) -> f32 {
     if f64::from(b) < 0.0 {
         b += std::f32::consts::TAU;
     }
-    if b >= PI {
-        -cos
-    } else {
-        cos
-    }
-}
-
-
-/// Reads the config file at `<config_dir>/smooth_f5/config.json`, falling
-/// back to the defaults on anything unreadable.
-pub fn load_config(config_dir: &std::path::Path) -> Config {
-    std::fs::read_to_string(config_dir.join("smooth_f5").join("config.json"))
-        .ok()
-        .and_then(|text| Config::parse(&text))
-        .unwrap_or_default()
-}
-
-/// Writes the config file, creating the folder when needed.
-pub fn save_config(config_dir: &std::path::Path, config: &Config) -> std::io::Result<()> {
-    let dir = config_dir.join("smooth_f5");
-    std::fs::create_dir_all(&dir)?;
-    std::fs::write(dir.join("config.json"), config.to_json())
+    if b >= PI { -cos } else { cos }
 }
 
 /// The shared smoothing state the camera hook drives.
@@ -632,20 +640,31 @@ mod tests {
         // yaw 0 looks south (+z); yaw 90 looks west (-x); both land on the
         // view's front (-z). World to view is the quat matrix's transpose.
         let q = Quat::rotation_yxz(PI, 0.0, 0.0);
-        assert!(close3(mul(transpose(q.matrix()), [0.0, 0.0, 1.0]), [0.0, 0.0, -1.0]));
+        assert!(close3(
+            mul(transpose(q.matrix()), [0.0, 0.0, 1.0]),
+            [0.0, 0.0, -1.0]
+        ));
         let q = Quat::rotation_yxz(PI - std::f32::consts::FRAC_PI_2, 0.0, 0.0);
-        assert!(close3(mul(transpose(q.matrix()), [-1.0, 0.0, 0.0]), [0.0, 0.0, -1.0]));
+        assert!(close3(
+            mul(transpose(q.matrix()), [-1.0, 0.0, 0.0]),
+            [0.0, 0.0, -1.0]
+        ));
     }
 
     fn transpose(m: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
-        [[m[0][0], m[1][0], m[2][0]], [m[0][1], m[1][1], m[2][1]], [m[0][2], m[1][2], m[2][2]]]
+        [
+            [m[0][0], m[1][0], m[2][0]],
+            [m[0][1], m[1][1], m[2][1]],
+            [m[0][2], m[1][2], m[2][2]],
+        ]
     }
 
     fn mulm(a: [[f32; 3]; 3], b: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
         let mut out = [[0.0f32; 3]; 3];
         for row in 0..3 {
             for col in 0..3 {
-                out[row][col] = a[row][0] * b[0][col] + a[row][1] * b[1][col] + a[row][2] * b[2][col];
+                out[row][col] =
+                    a[row][0] * b[0][col] + a[row][1] * b[1][col] + a[row][2] * b[2][col];
             }
         }
         out
@@ -696,7 +715,11 @@ mod tests {
                     f32::atan2(-m[0][1], m[1][1]),
                 )
             } else {
-                (f32::atan2(m[0][2], m[0][0]), m[2][1].signum() * PI / 2.0, 0.0)
+                (
+                    f32::atan2(m[0][2], m[0][0]),
+                    m[2][1].signum() * PI / 2.0,
+                    0.0,
+                )
             };
             // Rebuild the shake the game composes: Rz(roll) Rx(pitch) Ry(yaw)
             // applied to the vanilla view must land exactly on the smoothed
@@ -708,7 +731,8 @@ mod tests {
                 assert!(
                     close3(total[row], want[row]),
                     "row {row} for ({yv}, {pv}) -> ({ys}, {ps}): got {:?} want {:?}",
-                    total[row], want[row]
+                    total[row],
+                    want[row]
                 );
             }
         }
@@ -741,7 +765,11 @@ mod tests {
         // A bigger gap clamps to the surface's half-block ceiling per axis.
         state.snap_to([0.0, 64.0, 3.0], 0.0, 0.0);
         let out = apply_delta(&pose, &config, &mut state);
-        assert!(close(out.offset[2], -SHAKE_MAX_OFFSET), "back {:?}", out.offset);
+        assert!(
+            close(out.offset[2], -SHAKE_MAX_OFFSET),
+            "back {:?}",
+            out.offset
+        );
     }
 
     #[test]
@@ -764,7 +792,10 @@ mod tests {
 
     #[test]
     fn movement_mode_snaps_once_after_a_camera_change() {
-        let config = Config { mode: Mode::Movement, ..Config::default() };
+        let config = Config {
+            mode: Mode::Movement,
+            ..Config::default()
+        };
         let mut state = State::default();
         let pose = |detached| Pose {
             pos: [1.0, 2.0, 3.0],
@@ -786,14 +817,20 @@ mod tests {
         let mut state2 = State::default();
         let _ = camera_hook(&pose(false), Some(0.05), &config, &mut state2);
         let _ = camera_hook(&pose(true), Some(0.05), &config, &mut state2);
-        let moved = Pose { pos: [1.0, 2.0, 5.0], ..pose(true) };
+        let moved = Pose {
+            pos: [1.0, 2.0, 5.0],
+            ..pose(true)
+        };
         let out = camera_hook(&moved, Some(0.05), &config, &mut state2);
         assert!(!out.is_none());
     }
 
     #[test]
     fn transition_eases_back_into_first_person() {
-        let config = Config { mode: Mode::Transition, ..Config::default() };
+        let config = Config {
+            mode: Mode::Transition,
+            ..Config::default()
+        };
         let mut state = State::default();
         let third = Pose {
             pos: [0.0, 64.0, 4.0],
@@ -803,7 +840,11 @@ mod tests {
             mirrored: false,
             fall_flying: false,
         };
-        let first = Pose { pos: [0.0, 64.0, 0.0], detached: false, ..third };
+        let first = Pose {
+            pos: [0.0, 64.0, 0.0],
+            detached: false,
+            ..third
+        };
         let _ = camera_hook(&third, Some(0.05), &config, &mut state);
         // The switch to first person starts the transition; each frame's
         // offset shrinks toward nothing.
@@ -823,7 +864,10 @@ mod tests {
 
     #[test]
     fn never_mode_is_inert() {
-        let config = Config { mode: Mode::Never, ..Config::default() };
+        let config = Config {
+            mode: Mode::Never,
+            ..Config::default()
+        };
         let mut state = State::default();
         let pose = Pose {
             pos: [1.0, 2.0, 3.0],
@@ -906,27 +950,9 @@ mod tests {
     }
 }
 
-// Camera-hook glue, shared with the camera helper: the config cached from
-// disk and the frame clock that supplies each hook call its delta time.
-#[cfg(not(feature = "standalone"))]
-pub fn camera_config() -> Config {
-    static CONFIG: std::sync::OnceLock<std::sync::Mutex<Option<Config>>> = std::sync::OnceLock::new();
-    let cell = CONFIG.get_or_init(|| std::sync::Mutex::new(None));
-    let mut guard = cell.lock().expect("smooth_f5 config lock");
-    if let Some(config) = *guard {
-        return config;
-    }
-    let loaded = crate::game::Game::native_config_dir()
-        .ok()
-        .map(|dir| load_config(&dir))
-        .unwrap_or_else(Config::default);
-    *guard = Some(loaded);
-    loaded
-}
-
-#[cfg(not(feature = "standalone"))]
 pub fn camera_seconds() -> Option<f32> {
-    static LAST: std::sync::OnceLock<std::sync::Mutex<Option<std::time::Instant>>> = std::sync::OnceLock::new();
+    static LAST: std::sync::OnceLock<std::sync::Mutex<Option<std::time::Instant>>> =
+        std::sync::OnceLock::new();
     let cell = LAST.get_or_init(|| std::sync::Mutex::new(None));
     let mut last = cell.lock().expect("smooth_f5 frame lock");
     let now = std::time::Instant::now();
@@ -935,41 +961,7 @@ pub fn camera_seconds() -> Option<f32> {
     delta
 }
 
-// Command glue, shared with the command helper.
-#[cfg(not(feature = "standalone"))]
-fn config_slot() -> &'static std::sync::Mutex<Option<Config>> {
-    static CONFIG: std::sync::OnceLock<std::sync::Mutex<Option<Config>>> = std::sync::OnceLock::new();
-    CONFIG.get_or_init(|| std::sync::Mutex::new(None))
-}
-
-#[cfg(not(feature = "standalone"))]
-fn cached_config() -> Config {
-    let mut guard = config_slot().lock().expect("smooth_f5 config lock");
-    if guard.is_none() {
-        *guard = Some(
-            crate::game::Game::native_config_dir()
-                .ok()
-                .map(|dir| load_config(&dir))
-                .unwrap_or_else(Config::default),
-        );
-    }
-    guard.unwrap_or_else(Config::default)
-}
-
-#[cfg(not(feature = "standalone"))]
-fn store_config(game: &mut crate::game::Game<'_>, config: Config) {
-    let dir = crate::game::Game::native_config_dir();
-    let saved = dir.is_ok() && save_config(&dir.expect("checked"), &config).is_ok();
-    *config_slot().lock().expect("smooth_f5 config lock") = Some(config);
-    let word = if saved {
-        "saved"
-    } else {
-        "set for this session (the config file could not be written)"
-    };
-    game.native_chat(&format!("smooth f5 {} {}", summary(&config), word));
-}
-
-fn summary(config: &Config) -> String {
+pub fn summary(config: &Config) -> String {
     format!(
         "mode {}, pos {}, rot {}, stiffness {:.2}/{:.2}, return {}",
         config.mode.name(),
@@ -981,88 +973,7 @@ fn summary(config: &Config) -> String {
     )
 }
 
-fn on_off(value: bool) -> &'static str {
-    if value {
-        "on"
-    } else {
-        "off"
-    }
+pub fn on_off(value: bool) -> &'static str {
+    if value { "on" } else { "off" }
 }
 
-/// Handles `/smoothf5` and `/sf5`: parses the subcommand, applies config
-/// changes through the store and answers in chat, mirroring the original
-/// Countered's Smooth F5 command surface.
-#[cfg(not(feature = "standalone"))]
-pub fn command_entry(game: &mut crate::game::Game<'_>, command: &str, ran: &mut bool) {
-    if !game.native_on(ID) {
-        return;
-    }
-    let body = command
-        .strip_prefix("/smoothf5")
-        .or_else(|| command.strip_prefix("/sf5"));
-    let mut words = match body {
-        Some(rest) => rest.split_whitespace().map(|w| w.to_owned()).collect::<Vec<_>>(),
-        None => return,
-    };
-    let mut config = cached_config();
-    let head = if words.is_empty() { None } else { Some(words.remove(0)) };
-    let reply = match head.as_deref() {
-        None | Some("status") => summary(&config),
-        Some("mode") => match words.first().and_then(|w| Mode::parse(w)) {
-            Some(mode) => {
-                config.mode = mode;
-                store_config(game, config);
-                return;
-            }
-            None => "usage: /smoothf5 mode <transition|movement|always|never>".to_owned(),
-        },
-        Some(which @ ("pos" | "rot")) => {
-            let which_pos = which == "pos";
-            match words.first().map(|w| w.as_str()) {
-                Some("on") => {
-                    if which_pos {
-                        config.pos = true;
-                    } else {
-                        config.rot = true;
-                    }
-                    store_config(game, config);
-                    return;
-                }
-                Some("off") => {
-                    if which_pos {
-                        config.pos = false;
-                    } else {
-                        config.rot = false;
-                    }
-                    store_config(game, config);
-                    return;
-                }
-                _ => format!("usage: /smoothf5 {which} <on|off>"),
-            }
-        }
-        Some("stiffness") => match (words.first().map(|w| w.as_str()), words.get(1).and_then(|w| w.parse::<f32>().ok())) {
-            (Some("pos"), Some(value)) if (0.01..=1.0).contains(&value) => {
-                config.pos_stiffness = value;
-                store_config(game, config);
-                return;
-            }
-            (Some("rot"), Some(value)) if (0.01..=1.0).contains(&value) => {
-                config.rot_stiffness = value;
-                store_config(game, config);
-                return;
-            }
-            _ => "usage: /smoothf5 stiffness <pos|rot> <0.01 to 1>".to_owned(),
-        },
-        Some("return") => match words.first().and_then(|w| w.parse::<i32>().ok()) {
-            Some(value) if (1..=100).contains(&value) => {
-                config.return_duration = value;
-                store_config(game, config);
-                return;
-            }
-            _ => "usage: /smoothf5 return <1 to 100>".to_owned(),
-        },
-        _ => "usage: /smoothf5 <mode|pos|rot|stiffness|return|status>".to_owned(),
-    };
-    game.native_chat(&reply);
-    *ran = true;
-}

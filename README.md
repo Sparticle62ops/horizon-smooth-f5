@@ -1,44 +1,43 @@
-# smooth_f5 (Horizon port)
+# smooth_f5 (Horizon native mod)
 
-A Horizon port of [Countered's Smooth F5](https://github.com/Coun7ered/smooth_f5)
-(CC0-1.0, by Countered), which smooths the third-person camera: no more hard
-snaps when you toggle F5, gentle springs while you move, and an eased return
-into first person.
+A 1:1 Rust port of [Countered's Smooth F5](https://modrinth.com/mod/smooth-f5)
+(MIT): the camera glides between perspectives instead of cutting, with the
+original's mode (transition, movement, always, never), the position and
+rotation springs and the return duration. The package is the `.hmod` source:
+a native mod built against the pinned Horizon SDK (`api 0.2`, game 26.3).
 
-## How it works in Horizon
+## Behavior (the original's, kept)
 
-The original hooks Minecraft's `Camera.update` and rewrites the camera pose
-each frame. Horizon's camera is native, so this port rides the game's
-camera-shake surface instead: every frame the vanilla camera aligns as usual,
-then the mod answers the camera-shake hook with the turn (in degrees) and the
-offset (in blocks, along the camera's right, up and back) that carries the
-rendered camera onto the smoothed pose the original would have written.
+- The smoothing state machine is the original's two Camera.update hooks run
+  as one: the mode-change head logic, the springs, the transition and the
+  front-view fall-flying snap, then the pose delta.
+- Modes: transition (only the F5 cut smooths), movement (third person stays
+  springy), always, never.
+- The settings are the original's config fields, held on Horizon's
+  Options > Mods page, and `/smoothf5` (short form `/sf5`) keeps the
+  original's command surface: mode, pos, rot, stiffness pos|rot, return
+  and status.
 
-Everything else is a faithful port of the original's `CameraMixin`:
+## Wiring
 
-- The same four smoothing modes (transition, movement, always, never) with the
-  same defaults (always, both toggles on, stiffness 0.3/0.7, return 10).
-- The same spring physics for position (substeps of 0.25) and rotation
-  (substeps of 0.1), with damping twice the square root of the stiffness.
-- The same eased cubic return into first person, re-anchored each frame so a
-  moving target stays smooth.
-- The same front-view fall-flying reset, so elytra flight stays crisp.
+- camera_pose (client): the state machine runs once a frame after vanilla
+  places the camera and the eased position offset rides the camera's right,
+  up and back into the pose the game draws from.
+- register: the original's config fields registered as settings, same
+  defaults, labels in `assets/smooth_f5/lang/`.
+- command + register_client_commands: `/smoothf5`, answered locally,
+  written back through the settings, shown as a chat line, and consumed.
+- The frame delta the springs need is measured between hook calls.
 
-The camera-shake surface clamps each frame's turn to 10 degrees and each
-offset axis to 0.5 blocks. The mod answers within those bounds and keeps its
-state in step with what actually rendered, so a fast flick eases over a few
-frames instead of jumping.
+## Horizon seams
 
-## Commands
-
-- `/smoothf5 status` (or `/sf5`): show the current settings.
-- `/smoothf5 mode <transition|movement|always|never>`
-- `/smoothf5 pos <on|off>` and `/smoothf5 rot <on|off>`
-- `/smoothf5 stiffness <pos|rot> <0.01 to 1>`
-- `/smoothf5 return <1 to 100>`
-
-Settings live at `<config>/smooth_f5/config.json`.
+- The camera pose event exposes only the position as writable; the eased
+  turn (yaw, pitch and the roll) has no write yet, so the position half of
+  the smoothing applies and the rotation half waits. Ask filed on
+  horizon-rust/horizon (see below); when it lands the springs go back to
+  full parity.
 
 ## License
 
-CC0-1.0, like the original. See [LICENSE](LICENSE).
+Upstream Countered's Smooth F5: MIT. This port carries the same license;
+see LICENSE.

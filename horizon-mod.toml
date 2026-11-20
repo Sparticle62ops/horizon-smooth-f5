@@ -1,0 +1,15 @@
+id = "smooth_f5"
+name = "Smooth F5"
+version = "1.0.0"
+description = "Smooths the camera between perspectives: when you cycle F5 the camera glides to its new spot instead of cutting, with the mode (transition, movement, always, never), the position and rotation springs and the return duration the original's config has. A 1:1 Rust port of Countered's Smooth F5 (MIT); Horizon's Options > Mods page holds the settings."
+authors = ["sparticle"]
+license = "MIT"
+homepage = "https://github.com/Sparticle62ops/horizon-smooth-f5"
+api = "0.2"
+side = "client"
+capabilities = ["registries"]
+
+[native]
+game = "26.3"
+horizon = "f00125f61f794aaa3d4e950d301f353b35b6ee3d"
+mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"

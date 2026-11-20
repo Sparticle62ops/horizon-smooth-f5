@@ -1,0 +1,12 @@
+{
+  "setting.smooth_f5.mode": "Smoothing mode",
+  "setting.smooth_f5.mode.transition": "Transition",
+  "setting.smooth_f5.mode.movement": "Movement",
+  "setting.smooth_f5.mode.always": "Always",
+  "setting.smooth_f5.mode.never": "Never",
+  "setting.smooth_f5.pos": "Smooth position",
+  "setting.smooth_f5.rot": "Smooth rotation",
+  "setting.smooth_f5.pos_stiffness": "Position stiffness",
+  "setting.smooth_f5.rot_stiffness": "Rotation stiffness",
+  "setting.smooth_f5.return_duration": "Return duration (ticks)"
+}
