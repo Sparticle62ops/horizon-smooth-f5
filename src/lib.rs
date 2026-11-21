@@ -4,8 +4,8 @@
 //! as one) lives in `runtime.rs`, untouched: mode-change head logic, the
 //! springs, the transition, the front-view fall-flying snap. The hooks
 //! gather the pose facts and the settings answer, and the camera pose hook
-//! applies the eased position. The eased turn waits on a camera-rotation
-//! write in the API (README seams).
+//! applies the eased pose: the rotation as yaw and pitch, the position as a
+//! world-space delta (the pinned API takes position, yaw and pitch writes).
 use mod_api::{
     self, CameraPoseEvent, ClientHost, Command, CommandEvent, Flow, RegistrationContext,
     RegisterClientCommandsEvent, Registrar, SettingSpec, SettingValue,
@@ -13,7 +13,7 @@ use mod_api::{
 
 mod runtime;
 
-use runtime::{Config, Mode, Pose, Quat};
+use runtime::{Config, Mode, Pose};
 
 #[derive(Default)]
 struct Mod;
@@ -65,8 +65,9 @@ impl mod_api::Hooks for Mod {
     }
 
     /// Once a frame, after vanilla placed the camera: run the smoothing
-    /// state machine and apply the eased position. The eased turn (yaw,
-    /// pitch and the roll) waits on a camera-rotation write in the API.
+    /// state machine and apply the eased pose. The rotation writes as the
+    /// smoothed camera's yaw and pitch; the position rides the world-space
+    /// delta the runtime builds on the smoothed camera's own frame.
     fn camera_pose(&self, host: &dyn ClientHost, event: &mut CameraPoseEvent) {
         let camera = host.camera_type();
         let pose = Pose {
@@ -86,14 +87,14 @@ impl mod_api::Hooks for Mod {
             let mut state = runtime::state().lock().expect("smooth_f5 state lock");
             runtime::camera_hook(&pose, dt, &config, &mut state)
         };
-        // The offset rides the camera's right, up and back; the pose's own
-        // rotation carries it into world space.
-        if out.offset != [0.0_f32; 3] {
-            let q = Quat::rotation_yxz(event.yaw, event.pitch, 0.0);
-            let world = q.transform(out.offset);
-            for i in 0..3 {
-                event.position[i] += world[i] as f64;
-            }
+        // The runtime answers with the smoothed pose in world terms: the
+        // eased rotation as absolute degrees, the eased position as a
+        // world-space delta built on the smoothed camera's frame (the same
+        // basis runtime.rs projects on), written straight onto the pose.
+        event.yaw = out.yaw_abs;
+        event.pitch = out.pitch_abs;
+        for i in 0..3 {
+            event.position[i] += out.world_delta[i];
         }
     }
 
@@ -104,11 +105,13 @@ impl mod_api::Hooks for Mod {
     }
 
     fn command(&self, host: &mut dyn ClientHost, event: &mut CommandEvent) -> Flow {
-        let body = event
-            .command
-            .trim()
-            .strip_prefix("/smoothf5")
-            .or_else(|| event.command.trim().strip_prefix("/sf5"));
+        // The engine strips the leading slash before dispatch, so the
+        // command arrives bare; both forms match.
+        let raw = event.command.trim();
+        let bare = raw.strip_prefix('/').unwrap_or(raw);
+        let body = bare
+            .strip_prefix("smoothf5")
+            .or_else(|| bare.strip_prefix("sf5"));
         let Some(body) = body else {
             return Flow::Continue;
         };

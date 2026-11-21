@@ -141,6 +141,15 @@ pub struct ShakeOut {
     pub pitch: f32,
     pub roll: f32,
     pub offset: [f32; 3],
+    /// The smoothed camera's absolute rotation, in degrees: what the eased
+    /// turn writes on the camera pose hook (the pinned API takes yaw and
+    /// pitch writes directly).
+    pub yaw_abs: f32,
+    pub pitch_abs: f32,
+    /// The eased position in world terms: the clamped offset projected on
+    /// the smoothed camera's frame, the same projection the state syncs
+    /// with, so the pose hook needs no second basis of its own.
+    pub world_delta: [f64; 3],
 }
 
 impl ShakeOut {
@@ -443,6 +452,8 @@ fn apply_delta(pose: &Pose, config: &Config, state: &mut State) -> ShakeOut {
         out.yaw = yaw_sh * RAD_TO_DEG;
         out.pitch = pitch_sh * RAD_TO_DEG;
         out.roll = roll_sh * RAD_TO_DEG;
+        out.yaw_abs = rendered_yaw;
+        out.pitch_abs = rendered_pitch;
         state.smooth_yaw = rendered_yaw;
         state.smooth_pitch = rendered_pitch;
     } else {
@@ -450,6 +461,8 @@ fn apply_delta(pose: &Pose, config: &Config, state: &mut State) -> ShakeOut {
         state.smooth_pitch = pose.pitch;
         state.yaw_vel = 0.0;
         state.pitch_vel = 0.0;
+        out.yaw_abs = pose.yaw;
+        out.pitch_abs = pose.pitch;
     }
 
     if config.pos {
@@ -478,16 +491,18 @@ fn apply_delta(pose: &Pose, config: &Config, state: &mut State) -> ShakeOut {
             }
         }
         out.offset = offset;
-        // The state follows what the surface renders: the vanilla position
-        // moved by the clamped offset.
+        // The eased position in world terms, and the state follows what the
+        // surface renders: the vanilla position moved by the clamped offset,
+        // the same projection both use.
         for axis in 0..3 {
             let axis_vector = [right[axis], up[axis], back[axis]];
-            let world_delta: f64 = offset
+            let delta: f64 = offset
                 .iter()
                 .zip(axis_vector)
                 .map(|(amount, unit)| f64::from(*amount) * f64::from(unit))
                 .sum();
-            state.smooth_pos[axis] = pose.pos[axis] + world_delta;
+            out.world_delta[axis] = delta;
+            state.smooth_pos[axis] = pose.pos[axis] + delta;
         }
     } else {
         // The original only skips `setPosition`; the position state follows

@@ -1,6 +1,6 @@
 # smooth_f5 (Horizon native mod)
 
-A 1:1 Rust port of [Countered's Smooth F5](https://modrinth.com/mod/smooth-f5)
+A 1:1 Rust port of [Countered's Smooth F5](https://modrinth.com/mod/countereds-smooth-f5)
 (MIT): the camera glides between perspectives instead of cutting, with the
 original's mode (transition, movement, always, never), the position and
 rotation springs and the return duration. The package is the `.hmod` source:
@@ -31,11 +31,11 @@ a native mod built against the pinned Horizon SDK (`api 0.2`, game 26.3).
 
 ## Horizon seams
 
-- The camera pose event exposes only the position as writable; the eased
-  turn (yaw, pitch and the roll) has no write yet, so the position half of
-  the smoothing applies and the rotation half waits. Ask filed on
-  horizon-rust/horizon (see below); when it lands the springs go back to
-  full parity.
+- The camera pose event takes position, yaw and pitch writes on the pinned
+  API, so the eased pose applies in full: the rotation writes as the
+  smoothed camera's yaw and pitch, and the position rides a world-space
+  delta built on the smoothed camera's own frame (the same basis the
+  runtime projects the spring offsets on).
 
 ## License
 
